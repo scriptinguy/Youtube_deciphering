@@ -1,8 +1,10 @@
+// server.js
 import express from "express";
 import cors from "cors";
 import http from "http";
 import { WebSocketServer } from "ws";
 import ytdl from "@distube/ytdl-core";
+import { CurrentIos } from "./YoutubePlayback$CurrentIos.js"; // <--- Import here
 
 const PORT = process.env.PORT || 3000;
 const app = express();
@@ -10,31 +12,22 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Basic health check
-app.get("/health", (req, res) => {
-    res.json({ status: "ok", timestamp: new Date().toISOString() });
-});
-
-/**
- * YouTube Stream URL Resolver
- * Resolves direct audio stream URL and video metadata for a given YouTube URL/ID.
- */
 app.post("/youtube/resolve", async (req, res) => {
     try {
         const { url, videoId } = req.body;
         const target = url || (videoId ? `https://www.youtube.com/watch?v=${videoId}` : null);
 
-        if (!target) {
-            return res.status(400).json({ error: "Missing required field: 'url' or 'videoId'" });
-        }
-
-        if (!ytdl.validateURL(target)) {
+        if (!target || !ytdl.validateURL(target)) {
             return res.status(400).json({ error: "Invalid YouTube URL or ID" });
         }
 
-        const info = await ytdl.getInfo(target);
+        // Use CurrentIos headers inside ytdl request options here:
+        const info = await ytdl.getInfo(target, {
+            requestOptions: {
+                headers: CurrentIos.getHeaders()
+            }
+        });
         
-        // Filter best available audio format (opus / mp4 / webm)
         const audioFormats = ytdl.filterFormats(info.formats, "audioonly");
         const bestFormat = audioFormats[0] || info.formats.find(f => f.hasAudio);
 
@@ -58,6 +51,7 @@ app.post("/youtube/resolve", async (req, res) => {
         });
     }
 });
+
 
 /**
  * YouTube Audio Stream Proxy
