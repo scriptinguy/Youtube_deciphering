@@ -4,7 +4,13 @@ import cors from "cors";
 import http from "http";
 import { WebSocketServer } from "ws";
 import ytdl from "@distube/ytdl-core";
-import { CurrentIos } from "./YoutubePlayback$CurrentIos.js"; // <--- Import here
+
+// Define iOS user-agent headers directly to avoid ERR_MODULE_NOT_FOUND
+const iOSHeaders = {
+    "User-Agent": "com.google.ios.youtube/19.29.1 (iPhone16,2; U; CPU iOS 17_5_1 like Mac OS X; en_US)",
+    "X-YouTube-Client-Name": "5",
+    "X-YouTube-Client-Version": "19.29.1"
+};
 
 const PORT = process.env.PORT || 3000;
 const app = express();
@@ -21,10 +27,10 @@ app.post("/youtube/resolve", async (req, res) => {
             return res.status(400).json({ error: "Invalid YouTube URL or ID" });
         }
 
-        // Use CurrentIos headers inside ytdl request options here:
+        // Use standard request headers for ytdl-core
         const info = await ytdl.getInfo(target, {
             requestOptions: {
-                headers: CurrentIos.getHeaders()
+                headers: iOSHeaders
             }
         });
         
@@ -52,7 +58,6 @@ app.post("/youtube/resolve", async (req, res) => {
     }
 });
 
-
 /**
  * YouTube Audio Stream Proxy
  * Pipes raw audio bytes directly back to client (useful if host blocks CORS or requires agent headers).
@@ -70,7 +75,10 @@ app.get("/youtube/stream", async (req, res) => {
         ytdl(videoUrl, {
             filter: "audioonly",
             quality: "highestaudio",
-            highWaterMark: 1 << 25
+            highWaterMark: 1 << 25,
+            requestOptions: {
+                headers: iOSHeaders
+            }
         }).pipe(res);
     } catch (error) {
         console.error("YouTube streaming error:", error);
@@ -93,3 +101,4 @@ wss.on("connection", (ws) => {
 server.listen(PORT, () => {
     console.log(`Verity Proxy Server running on port ${PORT}`);
 });
+
